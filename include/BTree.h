@@ -5,7 +5,10 @@ class BTree
 {
     Node<Type, Ord> *root;
 
-    void splitChild(BTreeNode<T, ORDER> *x, int i);
+private:
+    void splitChild(Node<Type, Ord> *parent, int childIdx);
+
+    void insertRecursive(Node<Type, Ord> *node, const Type &value);
     void merge();
     void insert(Type key);
     void remove(Type key);

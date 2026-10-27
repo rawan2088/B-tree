@@ -16,11 +16,6 @@ struct InternalNode : public Node<Type, Ord>
             child[i] = nullptr;
         }
     }
-
-    ~InternalNode() override
-    {
-        // Decide with the team how child ownership is managed.
-    }
 };
 
 #endif
