@@ -1,0 +1,21 @@
+# Compiled executables
+*.exe
+*.out
+*.o
+*.obj
+
+# Debugging files
+*.pdb
+*.ilk
+
+# IDE files
+.vscode/
+.idea/
+
+# Build directories
+build/
+cmake-build-*/
+
+# OS-generated files
+.DS_Store
+Thumbs.db
