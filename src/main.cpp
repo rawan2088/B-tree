@@ -1,9 +1,9 @@
 #include <iostream>
-#include "BTree.h"
-#include "BTree.cpp"
+#include "../include/BTree.h"
 using namespace std;
 
-int main() {
+int main()
+{
     BTree<int, 4> tree;
 
     cout << "Empty tree: ";
