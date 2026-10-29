@@ -42,7 +42,8 @@ BTree-Assignment/
 │   ├── Node.h
 │   ├── LeafNode.h
 │   ├── InternalNode.h
-│   └── BTree.h
+│   ├── BTree.h
+│   └── BTree.tpp
 │
 ├── src/
 │   └── main.cpp
@@ -53,13 +54,14 @@ BTree-Assignment/
 
 ### Component Responsibilities
 
-| Component        | Responsibility                                               |
-| ---------------- | ------------------------------------------------------------ |
-| `Node.h`         | Defines the base `Node` template and shared node properties. |
-| `LeafNode.h`     | Defines leaf nodes that store keys without child nodes.      |
-| `InternalNode.h` | Defines internal nodes that store keys and child pointers.   |
-| `BTree.h`        | Manages the root and implements the tree's operations.       |
-| `main.cpp`       | Provides the program entry point and interactive menu.       |
+| Component        | Responsibility                                                |
+| ---------------- | ------------------------------------------------------------- |
+| `Node.h`         | Defines the base `Node` template and shared node properties.  |
+| `LeafNode.h`     | Defines leaf nodes that store keys without child nodes.       |
+| `InternalNode.h` | Defines internal nodes that store keys and child pointers.    |
+| `BTree.h`        | Declares the B-Tree template and includes its implementation. |
+| `BTree.tpp`      | Defines the B-Tree template operations.                       |
+| `main.cpp`       | Provides the program entry point and interactive menu.        |
 
 The implementation follows the required class hierarchy:
 
@@ -188,7 +190,7 @@ Test results and expected outputs can be documented in `docs/test_cases.md`.
 - The implementation follows the class structure specified in the assignment.
 - C++ templates are used to support generic key types.
 - The tree order is represented by the `Ord` template parameter, according to the agreed implementation.
-- Template definitions are kept in header files to ensure they are available during compilation.
+- Template definitions are kept in `BTree.tpp`, included at the end of `BTree.h`, so they are available during compilation.
 - The implementation should follow a consistent coding style and the assignment's formatting requirements.
 
 ---
