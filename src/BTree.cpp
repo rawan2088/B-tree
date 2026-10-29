@@ -224,3 +224,136 @@ void BTree<Type, Ord>::splitChild(
     parent->key[childIdx] = median;
     parent->num_keys++;
 }
+
+template<typename Type, int Ord>
+pair<Node<Type,Ord>*,int> BTree<Type, Ord>::search(Type key)
+{
+    Node<Type, Ord> *current = root;
+    while (current != nullptr)
+        {
+        int indx=0;
+        //gets the first key greater than the one I'm searching for
+        while (indx<current->num_keys && current->key[indx]< key)
+            {
+            indx++;
+        }
+
+        if (indx<current->num_keys && current->key[indx] == key)
+            {
+            return {current, indx};
+        }
+        // if the key is not found
+        if (current->is_leaf)
+            {
+            return {nullptr, -1};
+        }
+        current = static_cast<InternalNode<Type, Ord> *>(current)->child[indx];
+
+    }
+    return {nullptr,-1};
+}
+
+template<typename Type, int Ord>
+void BTree<Type, Ord>::merge(Node<Type,Ord>* parentNode,int indx) {
+    InternalNode<Type, Ord> *parent =static_cast<InternalNode<Type, Ord>*>(parentNode);
+    //get the left and right children of the parent
+    Node<Type, Ord> *left = parent->child[indx];
+    Node<Type, Ord> *right = parent->child[indx+1];
+    //merge the parent with the left child
+    left->key[left->num_keys] = parent->key[indx];
+    // increment the left child's num_keys
+    left->num_keys++;
+    int oldLeftKeys = left->num_keys;
+    //copy all right child's keys into the left
+    for (int i = 0; i < right->num_keys; i++)
+    {
+        left->key[oldLeftKeys+i] = right->key[i];
+    }
+    // if the right child is not a leaf copy all its children into the left key
+    if (!right->is_leaf)
+    {
+        // if the nodes are not leaves cast them in internal node type
+        InternalNode<Type, Ord> *leftNode = static_cast<InternalNode<Type, Ord> *>(left);
+        InternalNode<Type, Ord> *rightNode = static_cast<InternalNode<Type, Ord> *>(right);
+        for (int i = 0; i <= right->num_keys; i++)
+        {
+            leftNode->child[oldLeftKeys+i] = rightNode->child[i];
+        }
+    }
+    left->num_keys = oldLeftKeys+right->num_keys;
+    for (int i = indx; i < parent->num_keys-1; i++)
+    {
+        parent->key[i] = parent->key[i+1];
+    }
+    //index+1 cuz right leaf's elements are shifted to the left but children are not
+    for (int i = indx+1; i < parent->num_keys; i++) {
+        {
+            parent->child[i] = parent->child[i+1];
+        }
+    }
+    parent->child[parent->num_keys] = nullptr;
+    parent->num_keys--;
+    delete right;
+}
+
+template<typename Type, int Ord>
+void BTree<Type, Ord>::borrowLeft(Node<Type, Ord> *parentNode, int indx)
+{
+    InternalNode<Type, Ord> *parent = static_cast<InternalNode<Type, Ord>*>(parentNode);
+    Node<Type, Ord> *left = parent->child[indx];
+    Node<Type, Ord> *current = parent->child[indx+1];
+    //shift all elements in the current node and their children to the right one step
+    for (int i = current->num_keys-1; i >=0; i--)
+    {
+        current->key[i+1] = current->key[i];
+    }
+    if (!current->is_leaf)
+    {
+        InternalNode<Type, Ord> *leftNode = static_cast<InternalNode<Type, Ord> *>(left);
+        InternalNode<Type, Ord> *currentNode = static_cast<InternalNode<Type, Ord> *>(current);
+        for (int i = current->num_keys; i >=0; i--)
+        {
+            currentNode->child[i+1] = currentNode->child[i];
+        }
+        /* assign the left node's last key's children to the first new key in the current node
+        so that when we put the left key in the parent's index all its children
+        are in the right place :left children to the parent in its new position */
+        current->child[0] = left->child[left->num_keys];
+        left->child[left->num_keys] = nullptr;
+    }
+    //copy the value of the parent's key into the current's first key
+    //and the left's last key into the old parent's key index
+    current->key[0] = parent->key[indx];
+    parent->key[indx] = left->key[left->num_keys-1];
+    //increment number of current nodes keys by 1 and decrement the left by 1
+    current->num_keys++;
+    left->num_keys--;
+}
+
+template<typename Type, int Ord>
+void BTree<Type, Ord>::borrowRight(Node<Type, Ord> *parentNode, int indx)
+{
+    InternalNode<Type, Ord> *parent = static_cast<InternalNode<Type, Ord>*>(parentNode);
+    Node<Type, Ord> *current = parent->child[indx];
+    Node<Type, Ord> *right = parent->child[indx+1];
+    //copy the value of the parent's key into the last key of the current node
+    current->key[current->num_keys] = parent->key[indx];
+    parent->key[indx] = right->key[0];
+    for (int i = 0; i < current->num_keys-1; i++)
+    {
+        right->key[i] = right->key[i+1];
+    }
+    if (!right->is_leaf)
+    {
+        InternalNode<Type, Ord> *rightNode = static_cast<InternalNode<Type, Ord> *>(right);
+        InternalNode<Type, Ord> *currentNode = static_cast<InternalNode<Type, Ord> *>(current);
+        //right child of current's last node is the child of the right sibling
+        currentNode->child[current->num_keys+1] = rightNode->child[0];
+        for (int i =0; i<right->num_keys-1; i++) {
+            rightNode->child[i] = rightNode->child[i+1];
+        }
+        rightNode->child[right->num_keys] = nullptr;
+    }
+    right->num_keys--;
+    current->num_keys++;
+}
