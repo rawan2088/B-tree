@@ -3,64 +3,9 @@
 #include "LeafNode.h"
 #include "BTree.h"
 #include <iostream>
+#include <utility>
 using namespace std;
 
-// template <typename Type, int Ord>
-// void BTree<Type, Ord>::insert(Type value)
-// {
-
-//     if (root == nullptr)
-//     {
-//         root = new LeafNode<Type, Ord>();
-//         root->is_leaf = true;
-//         root->num_keys = 0;
-//     }
-
-//     if (root->num_keys == Ord - 1)
-//     {
-//         InternalNode<Type, Ord> *newRoot = new InternalNode<Type, Ord>();
-//         newRoot->num_keys = 0;
-//         newRoot->is_leaf = false;
-//         newRoot->child[0] = root;
-//         splitChild(newRoot, 0);
-//     }
-
-//     Node<Type, Ord> currNode = root;
-//     while (!currNode->is_leaf)
-//     {
-//         InternalNode<Type, Ord> internal = static_cast<InternalNode<Type, Ord> *>(currNode);
-//         int i = currNode->num_keys - 1;
-//         while (value < currNode->key[i])
-//         {
-//             i--;
-//             if (i < 0)
-//                 break;
-//         }
-//         i++;
-
-//         if (internal->child[i]->num_keys == Ord - 1)
-//         {
-//             splitChild(currNode, i);
-//             // to determine where the value fits after the split (i++ if the value belongs to the new right subtree)
-//             if (value > currNode->key[i])
-//             {
-//                 i++;
-//             }
-//         }
-//         currNode = internal->child[i];
-//     }
-
-//     int i = currNode->num_keys - 1;
-//     while (value < currNode->key[i])
-//     {
-//         if (i < 0)
-//             break;
-//         currNode->key[i + 1] = currNode->key[i];
-//         i--;
-//     }
-//     currNode->key[i + 1] = value;
-//     currNode->num_keys++;
-// };
 
 template <typename Type, int Ord>
 void BTree<Type, Ord>::insert(Type value)
@@ -223,4 +168,310 @@ void BTree<Type, Ord>::splitChild(
     // Promote the median into the parent.
     parent->key[childIdx] = median;
     parent->num_keys++;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+template<typename Type, int Ord>
+pair<Node<Type,Ord>*,int> BTree<Type, Ord>::search(Type key)
+{
+    Node<Type, Ord> *current = root;
+    while (current != nullptr)
+        {
+        int indx=0;
+        //gets the first key greater than the one I'm searching for
+        while (indx<current->num_keys && current->key[indx]< key)
+            {
+            indx++;
+        }
+
+        if (indx<current->num_keys && current->key[indx] == key)
+            {
+            return {current, indx};
+        }
+        // if the key is not found
+        if (current->is_leaf)
+            {
+            return {nullptr, -1};
+        }
+        current = static_cast<InternalNode<Type, Ord> *>(current)->child[indx];
+
+    }
+    return {nullptr,-1};
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+template <typename Type, int Ord>
+void BTree<Type, Ord>::deleteNode(Node<Type, Ord> *node)
+{
+    if (node->is_leaf)
+        delete static_cast<LeafNode<Type, Ord> *>(node);
+    else
+        delete static_cast<InternalNode<Type, Ord> *>(node);
+}
+
+template <typename Type, int Ord>
+void BTree<Type, Ord>::removeFromLeaf(Node<Type, Ord> *node, int idx) {
+    for (int i = idx + 1; i < node->num_keys; i++) {
+        node->key[i-1] = node->key[i];
+    } //move the rest of the keys one place behind <-- to fill the deleted node
+    node->num_keys--;
+}
+
+template <typename Type, int Ord>
+void BTree<Type, Ord>::removeFromNonLeaf(InternalNode<Type, Ord> *node, int idx) {
+    Node<Type, Ord>*left = node->child[idx];
+    Node<Type, Ord> *right = node->child[idx+1];
+    if (left->num_keys > minKeys() || right->num_keys <= minKeys()) { // FIX: <=
+        //Use predecessor
+        Type predecessor = getPredecessor(node, idx);
+        node->key[idx] = predecessor;
+        removeRecursive(node->child[idx], predecessor);
+
+        if (node->child[idx]->num_keys < minKeys()) {
+            fill(node, idx);
+        }
+    }
+    else {
+        //Use Successor
+        Type successor = getSuccessor(node, idx);
+        node->key[idx] = successor;
+        removeRecursive(node->child[idx+1], successor);
+
+        if (node->child[idx+1]->num_keys < minKeys()) { // FIX: check child idx+1
+            fill(node, idx+1);
+        }
+    }
+}
+
+template<typename Type, int Ord>
+void BTree<Type, Ord>::merge(Node<Type,Ord>* parent,int indx) {
+    InternalNode<Type, Ord> *internalParent =static_cast<InternalNode<Type, Ord>*>(parent);
+    //get the left and right children of the parent
+    Node<Type, Ord> *left = internalParent->child[indx];
+    Node<Type, Ord> *right = internalParent->child[indx+1];
+    //merge the parent with the left child
+    left->key[left->num_keys] = internalParent->key[indx];
+    // increment the left child's num_keys
+    left->num_keys++;
+    int oldLeftKeys = left->num_keys;
+    //copy all right child's keys into the left
+    for (int i = 0; i < right->num_keys; i++)
+    {
+        left->key[oldLeftKeys+i] = right->key[i];
+    }
+    // if the right child is not a leaf copy all its children into the left key
+    if (!right->is_leaf)
+    {
+        // if the nodes are not leaves cast them in internal node type
+        InternalNode<Type, Ord> *leftNode = static_cast<InternalNode<Type, Ord> *>(left);
+        InternalNode<Type, Ord> *rightNode = static_cast<InternalNode<Type, Ord> *>(right);
+        for (int i = 0; i <= right->num_keys; i++)
+        {
+            leftNode->child[oldLeftKeys+i] = rightNode->child[i];
+        }
+    }
+    left->num_keys = oldLeftKeys+right->num_keys;
+    for (int i = indx; i < internalParent->num_keys-1; i++)
+    {
+        internalParent->key[i] = internalParent->key[i+1];
+    }
+    //index+1 cuz right leaf's elements are shifted to the left but children are not
+    for (int i = indx+1; i < internalParent->num_keys; i++) {
+        {
+            internalParent->child[i] = internalParent->child[i+1];
+        }
+    }
+    internalParent->child[internalParent->num_keys] = nullptr;
+    internalParent->num_keys--;
+    deleteNode(right); // FIX: delete through the real type
+}
+
+template<typename Type, int Ord>
+void BTree<Type, Ord>::borrowLeft(Node<Type, Ord> *parent, int indx)
+{
+    InternalNode<Type, Ord> *internalParent = static_cast<InternalNode<Type, Ord>*>(parent);
+    Node<Type, Ord> *left = internalParent->child[indx];
+    Node<Type, Ord> *current = internalParent->child[indx+1];
+    //shift all elements in the current node and their children to the right one step
+    for (int i = current->num_keys-1; i >=0; i--)
+    {
+        current->key[i+1] = current->key[i];
+    }
+    if (!current->is_leaf)
+    {
+        InternalNode<Type, Ord> *leftNode = static_cast<InternalNode<Type, Ord> *>(left);
+        InternalNode<Type, Ord> *currentNode = static_cast<InternalNode<Type, Ord> *>(current);
+        for (int i = current->num_keys; i >=0; i--)
+        {
+            currentNode->child[i+1] = currentNode->child[i];
+        }
+        /* assign the left node's last key's children to the first new key in the current node
+        so that when we put the left key in the parent's index all its children
+        are in the right place :left children to the parent in its new position */
+        currentNode->child[0] = leftNode->child[left->num_keys]; // FIX: use the InternalNode casts
+        leftNode->child[left->num_keys] = nullptr;
+    }
+    //copy the value of the parent's key into the current's first key
+    //and the left's last key into the old parent's key index
+    current->key[0] = internalParent->key[indx];
+    internalParent->key[indx] = left->key[left->num_keys-1];
+    //increment number of current nodes keys by 1 and decrement the left by 1
+    current->num_keys++;
+    left->num_keys--;
+}
+
+template<typename Type, int Ord>
+void BTree<Type, Ord>::borrowRight(Node<Type, Ord> *parent, int indx)
+{
+    InternalNode<Type, Ord> *internalParent = static_cast<InternalNode<Type, Ord>*>(parent);
+    Node<Type, Ord> *current = internalParent->child[indx];
+    Node<Type, Ord> *right = internalParent->child[indx+1];
+    //copy the value of the parent's key into the last key of the current node
+    current->key[current->num_keys] = internalParent->key[indx];
+    internalParent->key[indx] = right->key[0];
+    for (int i = 0; i < right->num_keys-1; i++) // FIX: loop over right's keys
+    {
+        right->key[i] = right->key[i+1];
+    }
+    if (!right->is_leaf)
+    {
+        InternalNode<Type, Ord> *rightNode = static_cast<InternalNode<Type, Ord> *>(right);
+        InternalNode<Type, Ord> *currentNode = static_cast<InternalNode<Type, Ord> *>(current);
+        //right child of current's last node is the child of the right sibling
+        currentNode->child[current->num_keys+1] = rightNode->child[0];
+        for (int i =0; i<right->num_keys; i++) { // FIX: right has num_keys+1 children
+            rightNode->child[i] = rightNode->child[i+1];
+        }
+        rightNode->child[right->num_keys] = nullptr;
+    }
+    right->num_keys--;
+    current->num_keys++;
+}
+
+template<typename Type, int Ord>
+Type BTree<Type, Ord>::getPredecessor(Node<Type,Ord> *node, int indx) {
+    Node<Type, Ord> *current =  static_cast<InternalNode<Type, Ord>*>(node)->child[indx];
+
+    while (!current->is_leaf)
+        current = static_cast<InternalNode<Type, Ord> *>(current)->child[current->num_keys];
+    return current->key[current->num_keys - 1]; // last key
+
+}
+
+template<typename Type, int Ord>
+Type BTree<Type, Ord>::getSuccessor(Node<Type,Ord> *node, int indx) {
+    Node<Type, Ord> *current =  static_cast<InternalNode<Type, Ord>*>(node)->child[indx+1];
+
+    while (!current->is_leaf)
+        current = static_cast<InternalNode<Type, Ord> *>(current)->child[0];
+    return current->key[0]; // first key
+}
+
+template <typename Type, int Ord>
+void BTree<Type, Ord>::fill(InternalNode<Type, Ord>* parent, int idx) {
+    if (idx > 0 && parent->child[idx - 1]->num_keys > minKeys())
+        borrowLeft(parent, idx - 1);   // FIX: borrowLeft takes the LEFT sibling's index
+    else if (idx < parent->num_keys && parent->child[idx + 1]->num_keys > minKeys())
+        borrowRight(parent, idx);      // FIX: borrowRight takes the underfull child's index
+    else if (idx < parent->num_keys)
+        merge(parent, idx);      // merge with the right sibling
+    else
+        merge(parent, idx - 1);  // last child: merge with the left sibling
+}
+
+template <typename Type, int Ord>
+void BTree<Type, Ord>::removeRecursive(Node<Type, Ord> *node, const Type &key)
+{
+    // find first key >= key
+    int idx = 0;
+    while (idx < node->num_keys && node->key[idx] < key)
+        idx++;
+
+    // Case A: key is in this node
+    if (idx < node->num_keys && node->key[idx] == key)
+    {
+        if (node->is_leaf)
+            removeFromLeaf(node, idx);
+        else
+            removeFromNonLeaf(static_cast<InternalNode<Type, Ord> *>(node), idx);
+        return;
+    }
+
+    // Case B: key is not here
+    if (node->is_leaf)
+    {
+        cout << "The key " << key << " is not present in the tree\n";
+        return;
+    }
+
+    InternalNode<Type, Ord> *internal = static_cast<InternalNode<Type, Ord> *>(node);
+
+    removeRecursive(internal->child[idx], key);
+
+    // on the way back up: if the child became too small, repair it
+    if (internal->child[idx]->num_keys < minKeys())
+        fill(internal, idx);
+}
+
+template <typename Type, int Ord>
+void BTree<Type, Ord>::remove(Type key)
+{
+    if (root == nullptr)
+    {
+        cout << "The tree is empty\n";
+        return;
+    }
+
+    removeRecursive(root, key);
+
+    // root may have become empty: the tree shrinks by one level
+    if (root->num_keys == 0)
+    {
+        Node<Type, Ord> *old = root;
+
+        if (root->is_leaf)
+            root = nullptr;
+        else
+            root = static_cast<InternalNode<Type, Ord> *>(root)->child[0];
+
+        deleteNode(old);
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+template <typename Type, int Ord>
+void BTree<Type, Ord>::display() {
+    if (root == nullptr) {
+        cout << "The tree is empty\n";
+        return;
+    }
+
+    displayRecursive(root);
+    cout << endl;
+}
+template <typename Type, int Ord>
+void BTree<Type, Ord>::displayRecursive(Node<Type, Ord> *node)
+{
+    // Base case: a leaf has no children, just print its keys.
+    if (node->is_leaf)
+    {
+        for (int i = 0; i < node->num_keys; i++)
+            cout << node->key[i] << " ";
+        return;
+    }
+
+    // Internal node: child[0], key[0], child[1], key[1], ..., child[n]
+    InternalNode<Type, Ord> *internal =
+        static_cast<InternalNode<Type, Ord> *>(node);
+
+    for (int i = 0; i < node->num_keys; i++)
+    {
+        displayRecursive(internal->child[i]); // everything smaller than key[i]
+        cout << node->key[i] << " ";          // then the key itself
+    }
+
+    // The last child holds everything larger than the last key.
+    displayRecursive(internal->child[node->num_keys]);
 }
